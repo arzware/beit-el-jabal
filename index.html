@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet" />
-    <link rel="stylesheet" href="./styles.css" />
+    <link rel="stylesheet" href="./styles.css?v=booking-1" />
   </head>
   <body>
     <div class="cursor-glow" aria-hidden="true"></div>
@@ -48,7 +48,7 @@
           <h1>Your private pool escape above the rush of the city.</h1>
           <p class="hero-text">Beit El Jabal is a calm chalet-for-rent experience in Saida, Lebanon — made for day and half-day bookings, family gatherings, birthdays, sunsets, BBQs, and slow mountain-style moments.</p>
           <div class="hero-actions">
-            <a class="button primary" href="https://wa.me/81726020?text=Hello%20Beit%20El%20Jabal%2C%20I%20want%20to%20check%20availability" target="_blank" rel="noreferrer">Check availability</a>
+            <a class="button primary" href="#booking">Check availability</a>
             <a class="button ghost" href="#gallery">View the place</a>
           </div>
           <div class="trust-row" aria-label="Highlights">
@@ -132,21 +132,54 @@
         </div>
       </section>
 
-      <section class="booking section-pad" id="booking">
+      <section class="booking booking-system section-pad" id="booking" aria-labelledby="booking-title">
         <div class="booking-card reveal">
-          <p class="eyebrow">Book your escape</p>
-          <h2>Ready for a day by the pool?</h2>
-          <p>Message Beit El Jabal directly to ask about available dates, day or half-day pricing, guest count, and any occasion setup details.</p>
+          <p class="eyebrow">Book your stay</p>
+          <h2 id="booking-title">Check Availability</h2>
+          <p>Choose an available calendar slot, add your details, and send the request through WhatsApp. Your slot is confirmed manually after Beit El Jabal replies.</p>
           <div class="booking-actions">
-            <a class="button primary" href="https://wa.me/81726020?text=Hello%20Beit%20El%20Jabal%2C%20I%20want%20to%20book%20a%20private%20pool%20day" target="_blank" rel="noreferrer">Book on WhatsApp</a>
             <a class="button light" href="https://www.instagram.com/beit_eljaball" target="_blank" rel="noreferrer">Open Instagram</a>
           </div>
+          <div class="booking-note" role="note">
+            <strong>How it works:</strong>
+            <span>Calendar shows available times. WhatsApp handles confirmation. Slots are not marked booked automatically.</span>
+          </div>
         </div>
-        <aside class="booking-details reveal delay-1" aria-label="Booking details">
-          <div><span>Location</span><strong>Saida, Lebanon</strong></div>
-          <div><span>Bookings</span><strong>Day or half-day</strong></div>
-          <div><span>Contact</span><strong>81 / 726020</strong></div>
-        </aside>
+
+        <div class="availability-panel reveal delay-1" data-booking-section>
+          <div class="availability-header">
+            <div>
+              <p class="eyebrow">Available times</p>
+              <h3>Pick a slot</h3>
+            </div>
+            <span class="availability-source" data-availability-source>Demo slots</span>
+          </div>
+
+          <p class="availability-state" data-booking-status>Loading available times...</p>
+          <div class="slot-grid" data-slots aria-live="polite"></div>
+
+          <form class="booking-form" data-booking-form hidden>
+            <div class="selected-slot" data-selected-slot></div>
+            <label>
+              <span>Full name *</span>
+              <input type="text" name="fullName" autocomplete="name" required placeholder="Your full name" />
+            </label>
+            <label>
+              <span>Phone number *</span>
+              <input type="tel" name="phone" autocomplete="tel" required placeholder="Your phone number" />
+            </label>
+            <label>
+              <span>Number of guests</span>
+              <input type="number" name="guests" inputmode="numeric" min="1" placeholder="Example: 8" />
+            </label>
+            <label>
+              <span>Message / special request</span>
+              <textarea name="message" rows="4" placeholder="Birthday setup, family day, BBQ request..."></textarea>
+            </label>
+            <p class="form-error" data-form-error role="alert"></p>
+            <button class="button primary" type="submit">Book through WhatsApp</button>
+          </form>
+        </div>
       </section>
 
       <section class="faq section-pad" id="faq">
@@ -183,6 +216,6 @@
       </div>
     </footer>
 
-    <script src="./script.js"></script>
+    <script type="module" src="./script.js?v=booking-1"></script>
   </body>
 </html>
