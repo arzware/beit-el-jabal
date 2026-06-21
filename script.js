@@ -90,38 +90,6 @@ const createDateAtTime = (baseDate, hour, minute = 0) => {
   return date;
 };
 
-const getDemoSlots = () => {
-  const friday = getNextWeekday(5);
-  const saturday = getNextWeekday(6);
-
-  return [
-    {
-      id: 'demo-full-day',
-      title: 'Available - Full Day',
-      type: 'Full Day',
-      start: createDateAtTime(friday, 10),
-      end: createDateAtTime(friday, 18),
-      isDemo: true,
-    },
-    {
-      id: 'demo-half-day-morning',
-      title: 'Available - Half Day Morning',
-      type: 'Half Day Morning',
-      start: createDateAtTime(saturday, 10),
-      end: createDateAtTime(saturday, 14),
-      isDemo: true,
-    },
-    {
-      id: 'demo-half-day-evening',
-      title: 'Available - Half Day Evening',
-      type: 'Half Day Evening',
-      start: createDateAtTime(saturday, 15),
-      end: createDateAtTime(saturday, 20),
-      isDemo: true,
-    },
-  ];
-};
-
 const getEventDate = (eventDate) => {
   if (!eventDate) return null;
   const value = eventDate.dateTime || eventDate.date;
@@ -137,14 +105,13 @@ const normalizeCalendarEvent = (event) => {
     title,
     type: getBookingType(title),
     start: getEventDate(event.start),
-    end: getEventDate(event.end),
-    isDemo: false,
+    end: getEventDate(event.end)
   };
 };
 
 const fetchCalendarSlots = async () => {
   if (!bookingConfig.calendarId || !bookingConfig.apiKey) {
-    return { slots: getDemoSlots(), source: 'Demo slots' };
+    return { slots: [], source: 'WhatsApp Booking' };
   }
 
   const params = new URLSearchParams({
@@ -221,7 +188,6 @@ const renderSlots = (slots) => {
     card.innerHTML = `
       <div class="slot-date">
         <span>${dateFormatter.format(slot.start)}</span>
-        ${slot.isDemo ? '<em>Demo</em>' : ''}
       </div>
       <h4>${slot.type}</h4>
       <p>${timeFormatter.format(slot.start)} - ${timeFormatter.format(slot.end)}</p>
