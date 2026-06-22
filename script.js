@@ -40,26 +40,34 @@ const observer = new IntersectionObserver((entries) => {
 document.querySelectorAll('.reveal').forEach((element) => observer.observe(element));
 
 // Booking configuration
-// Later, when you connect Google Calendar through a Vite build, place these in your deploy environment:
-// VITE_GOOGLE_CALENDAR_ID=your_public_calendar_id
-// VITE_GOOGLE_CALENDAR_API_KEY=your_browser_restricted_google_api_key
-// VITE_WHATSAPP_NUMBER=81726020
-// For this current static GitHub Pages version, you may also set window.BEIT_EL_JABAL_BOOKING before this script loads.
-const viteEnv = import.meta.env || {};
 const bookingConfig = {
-  calendarId: window.BEIT_EL_JABAL_BOOKING?.calendarId || viteEnv.VITE_GOOGLE_CALENDAR_ID || '',
-  apiKey: window.BEIT_EL_JABAL_BOOKING?.apiKey || viteEnv.VITE_GOOGLE_CALENDAR_API_KEY || '',
-  whatsappNumber: window.BEIT_EL_JABAL_BOOKING?.whatsappNumber || viteEnv.VITE_WHATSAPP_NUMBER || '81726020',
+  calendarId: import.meta.env.VITE_GOOGLE_CALENDAR_ID || '',
+  apiKey: import.meta.env.VITE_GOOGLE_CALENDAR_API_KEY || '',
+  whatsappNumber: import.meta.env.VITE_WHATSAPP_NUMBER || '96181801907',
+  webhookUrl: import.meta.env.VITE_BOOKING_WEBHOOK_URL || '',
 };
+
+console.log('--- Vite Env Debug ---');
+console.log('Calendar ID configured:', !!bookingConfig.calendarId);
+console.log('API Key configured:', !!bookingConfig.apiKey);
+console.log('WhatsApp Number configured:', !!bookingConfig.whatsappNumber);
+console.log('Webhook URL configured:', !!bookingConfig.webhookUrl);
+console.log('----------------------');
 
 const bookingEls = {
   source: document.querySelector('[data-availability-source]'),
   status: document.querySelector('[data-booking-status]'),
   slots: document.querySelector('[data-slots]'),
+  dateSelector: document.querySelector('[data-date-selector]'),
+  dateSelect: document.querySelector('[data-date-select]'),
   form: document.querySelector('[data-booking-form]'),
   selectedSlot: document.querySelector('[data-selected-slot]'),
   error: document.querySelector('[data-form-error]'),
 };
+
+document.querySelector('a[href="#booking"]')?.addEventListener('click', () => {
+  console.log('Check availability button clicked');
+});
 
 let selectedSlot = null;
 
@@ -74,6 +82,10 @@ const timeFormatter = new Intl.DateTimeFormat('en-US', {
   hour: 'numeric',
   minute: '2-digit',
 });
+
+const getDateKey = (dateObj) => {
+  return `${dateObj.getFullYear()}-${String(dateObj.getMonth() + 1).padStart(2, '0')}-${String(dateObj.getDate()).padStart(2, '0')}`;
+};
 
 const getNextWeekday = (weekdayIndex) => {
   const now = new Date();
@@ -96,48 +108,99 @@ const getEventDate = (eventDate) => {
   return value ? new Date(value) : null;
 };
 
-const getBookingType = (title) => title.replace(/^Available\s*-?\s*/i, '').trim() || 'Available Slot';
-
-const normalizeCalendarEvent = (event) => {
-  const title = event.summary || '';
-  return {
-    id: event.id,
-    title,
-    type: getBookingType(title),
-    start: getEventDate(event.start),
-    end: getEventDate(event.end)
-  };
-};
-
-const fetchCalendarSlots = async () => {
+const fetchBusyEvents = async () => {
   if (!bookingConfig.calendarId || !bookingConfig.apiKey) {
-    return { slots: [], source: 'WhatsApp Booking' };
+    throw new Error('API_KEY_MISSING');
   }
+
+  const now = new Date();
+  const thirtyDaysFromNow = new Date();
+  thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
 
   const params = new URLSearchParams({
     key: bookingConfig.apiKey,
     singleEvents: 'true',
     orderBy: 'startTime',
-    timeMin: new Date().toISOString(),
-    maxResults: '50',
+    timeMin: now.toISOString(),
+    timeMax: thirtyDaysFromNow.toISOString(),
+    maxResults: '250',
   });
 
   const url = `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(bookingConfig.calendarId)}/events?${params}`;
   const response = await fetch(url);
 
   if (!response.ok) {
+    const errorText = await response.text();
+    console.error('Google Calendar fetch error details:', errorText);
     throw new Error(`Google Calendar request failed with ${response.status}`);
   }
 
   const data = await response.json();
-  const now = new Date();
-  const slots = (data.items || [])
-    .map(normalizeCalendarEvent)
-    .filter((slot) => slot.title.toLowerCase().startsWith('available'))
-    .filter((slot) => slot.start && slot.end && slot.start > now)
-    .sort((a, b) => a.start - b.start);
+  return (data.items || []).map(event => ({
+    start: getEventDate(event.start),
+    end: getEventDate(event.end)
+  })).filter(e => e.start && e.end);
+};
 
-  return { slots, source: 'Google Calendar' };
+const generateLocalSlots = () => {
+  const slots = [];
+  const now = new Date();
+  
+  for (let i = 0; i < 30; i++) {
+    const day = new Date(now);
+    day.setDate(now.getDate() + i);
+    
+    const fullDayStart = createDateAtTime(day, 10, 0);
+    const fullDayEnd = createDateAtTime(day, 18, 0);
+    if (fullDayStart > now) {
+      slots.push({ type: 'Full day', start: fullDayStart, end: fullDayEnd });
+    }
+    
+    const morningStart = createDateAtTime(day, 10, 0);
+    const morningEnd = createDateAtTime(day, 14, 0);
+    if (morningStart > now) {
+      slots.push({ type: 'Morning half-day', start: morningStart, end: morningEnd });
+    }
+    
+    const afternoonStart = createDateAtTime(day, 14, 0);
+    const afternoonEnd = createDateAtTime(day, 18, 0);
+    if (afternoonStart > now) {
+      slots.push({ type: 'Afternoon half-day', start: afternoonStart, end: afternoonEnd });
+    }
+  }
+  return slots;
+};
+
+const isOverlapping = (slot, busyEvents) => {
+  return busyEvents.some(busy => {
+    return slot.start < busy.end && slot.end > busy.start;
+  });
+};
+
+const getAvailableSlots = async () => {
+  console.log('Generating local slots...');
+  const localSlots = generateLocalSlots();
+  console.log(`Generated ${localSlots.length} local slots.`);
+  
+  try {
+    console.log('Calendar fetch started...');
+    const busyEvents = await fetchBusyEvents();
+    console.log(`Calendar fetch success. Number of busy events found: ${busyEvents.length}`);
+    
+    const availableSlots = localSlots.filter(slot => !isOverlapping(slot, busyEvents));
+    console.log(`Filtering complete. Number of available slots generated: ${availableSlots.length}`);
+    
+    return {
+      slots: availableSlots,
+      source: 'Google Calendar'
+    };
+  } catch (error) {
+    if (error.message === 'API_KEY_MISSING') {
+       throw error;
+    }
+    console.error('Calendar Fetch Error:', error);
+    throw new Error('FAILED_TO_FETCH');
+  }
 };
 
 const showStatus = (message, state = 'info') => {
@@ -170,16 +233,77 @@ const selectSlot = (slot, button) => {
   bookingEls.form.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 };
 
-const renderSlots = (slots) => {
-  if (!bookingEls.slots) return;
-  bookingEls.slots.innerHTML = '';
+let allAvailableSlots = [];
+let slotsByDate = {};
 
-  if (!slots.length) {
-    showStatus('No available times right now. Please contact us on WhatsApp.', 'empty');
+const renderDateSelector = (slots) => {
+  console.log(`renderDateSelector called with ${slots.length} slots.`);
+  if (!bookingEls.dateSelect) return;
+  
+  allAvailableSlots = slots;
+  slotsByDate = {};
+  
+  const now = new Date();
+  for (let i = 0; i < 30; i++) {
+    const day = new Date(now);
+    day.setDate(now.getDate() + i);
+    slotsByDate[getDateKey(day)] = [];
+  }
+  
+  slots.forEach(slot => {
+    const key = getDateKey(slot.start);
+    if (slotsByDate[key]) {
+      slotsByDate[key].push(slot);
+    }
+  });
+
+  bookingEls.dateSelect.innerHTML = '';
+  let firstAvailableKey = null;
+
+  Object.keys(slotsByDate).forEach(key => {
+    const daySlots = slotsByDate[key];
+    const dateParts = key.split('-');
+    // Create date safely without timezone shifting issues:
+    const dateObj = new Date(dateParts[0], dateParts[1] - 1, dateParts[2]); 
+    const formattedDate = dateFormatter.format(dateObj);
+    
+    const option = document.createElement('option');
+    option.value = key;
+    
+    if (daySlots.length === 0) {
+      option.textContent = `${formattedDate} — Fully booked`;
+      option.disabled = true;
+    } else {
+      option.textContent = formattedDate;
+      if (!firstAvailableKey) firstAvailableKey = key;
+    }
+    
+    bookingEls.dateSelect.appendChild(option);
+  });
+
+  if (!firstAvailableKey) {
+    showStatus('No available slots in the next 30 days. Please contact us on WhatsApp.', 'empty');
+    bookingEls.dateSelector.hidden = true;
+    bookingEls.slots.innerHTML = '';
     return;
   }
 
   hideStatus();
+  bookingEls.dateSelector.hidden = false;
+  bookingEls.dateSelect.value = firstAvailableKey;
+  renderSlotsForDate(firstAvailableKey);
+};
+
+const renderSlotsForDate = (dateKey) => {
+  const slots = slotsByDate[dateKey] || [];
+  if (!bookingEls.slots) return;
+  bookingEls.slots.innerHTML = '';
+  
+  bookingEls.form.hidden = true;
+  selectedSlot = null;
+
+  if (!slots.length) return;
+
   const fragment = document.createDocumentFragment();
 
   slots.forEach((slot) => {
@@ -200,16 +324,20 @@ const renderSlots = (slots) => {
   bookingEls.slots.append(fragment);
 };
 
+bookingEls.dateSelect?.addEventListener('change', (e) => {
+  renderSlotsForDate(e.target.value);
+});
+
 const buildWhatsAppMessage = (formData) => {
   const guests = formData.get('guests')?.trim() || 'Not specified';
   const message = formData.get('message')?.trim() || 'No special request';
 
-  return `Hello Beit El Jabal, I would like to book:\n\nDate: ${dateFormatter.format(selectedSlot.start)}\nTime: ${timeFormatter.format(selectedSlot.start)} - ${timeFormatter.format(selectedSlot.end)}\nType: ${selectedSlot.type}\n\nName: ${formData.get('fullName').trim()}\nPhone: ${formData.get('phone').trim()}\nGuests: ${guests}\nMessage: ${message}\n\nIs this still available?`;
+  return `Hello, I want to book Beit El Jabal.\nThis is a booking request and final confirmation is by WhatsApp.\n\nDate: ${dateFormatter.format(selectedSlot.start)}\nSlot: ${selectedSlot.type}\nTime: ${timeFormatter.format(selectedSlot.start)} - ${timeFormatter.format(selectedSlot.end)}\nName: ${formData.get('fullName').trim()}\nPhone: ${formData.get('phone').trim()}\nGuests: ${guests}\nNotes: ${message}`;
 };
 
-bookingEls.form?.addEventListener('submit', (event) => {
+bookingEls.form?.addEventListener('submit', async (event) => {
   event.preventDefault();
-  bookingEls.error.textContent = '';
+  bookingEls.error.innerHTML = '';
 
   if (!selectedSlot) {
     bookingEls.error.textContent = 'Please select an available slot first.';
@@ -219,15 +347,74 @@ bookingEls.form?.addEventListener('submit', (event) => {
   const formData = new FormData(bookingEls.form);
   const fullName = formData.get('fullName')?.trim();
   const phone = formData.get('phone')?.trim();
+  const guests = formData.get('guests')?.trim() || 'Not specified';
+  const message = formData.get('message')?.trim() || 'No special request';
 
   if (!fullName || !phone) {
     bookingEls.error.textContent = 'Full name and phone number are required.';
     return;
   }
 
-  const encodedMessage = encodeURIComponent(buildWhatsAppMessage(formData));
-  const url = `https://wa.me/${bookingConfig.whatsappNumber}?text=${encodedMessage}`;
-  window.open(url, '_blank', 'noopener,noreferrer');
+  const submitButton = bookingEls.form.querySelector('button[type="submit"]');
+  const originalButtonText = submitButton.textContent;
+
+  const openWhatsApp = () => {
+    const encodedMessage = encodeURIComponent(buildWhatsAppMessage(formData));
+    const url = `https://wa.me/${bookingConfig.whatsappNumber}?text=${encodedMessage}`;
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  if (!bookingConfig.webhookUrl) {
+    openWhatsApp();
+    return;
+  }
+
+  submitButton.textContent = 'Registering booking...';
+  submitButton.disabled = true;
+
+  const payload = {
+    name: fullName,
+    phone: phone,
+    guests: guests,
+    notes: message,
+    date: dateFormatter.format(selectedSlot.start),
+    slotLabel: selectedSlot.type,
+    start: selectedSlot.start.toISOString(),
+    end: selectedSlot.end.toISOString(),
+    calendarId: bookingConfig.calendarId
+  };
+
+  try {
+    const response = await fetch(bookingConfig.webhookUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'text/plain'
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (!result.success) {
+      if (result.error === 'Slot is no longer available') {
+        bookingEls.error.innerHTML = `Sorry, this slot was just taken. Please choose another time or <a href="https://wa.me/${bookingConfig.whatsappNumber}" target="_blank" style="color: inherit; text-decoration: underline;">contact us on WhatsApp</a>.`;
+        return;
+      } else {
+        console.error('Webhook error:', result.error);
+        openWhatsApp();
+      }
+    } else {
+      console.log('Pending booking added to calendar.', result.eventId);
+      openWhatsApp();
+      initBooking();
+    }
+  } catch (error) {
+    console.error('WhatsApp request opened, but calendar pending event was not created.', error);
+    openWhatsApp();
+  } finally {
+    submitButton.textContent = originalButtonText;
+    submitButton.disabled = false;
+  }
 });
 
 const initBooking = async () => {
@@ -235,14 +422,18 @@ const initBooking = async () => {
   showStatus('Loading available times...', 'loading');
 
   try {
-    const { slots, source } = await fetchCalendarSlots();
+    const { slots, source } = await getAvailableSlots();
     if (bookingEls.source) bookingEls.source.textContent = source;
-    renderSlots(slots);
+    renderDateSelector(slots);
   } catch (error) {
-    console.error(error);
+    console.error('initBooking error caught:', error);
     if (bookingEls.source) bookingEls.source.textContent = 'WhatsApp fallback';
     bookingEls.slots.innerHTML = '';
-    showStatus('Could not load availability. Please contact us on WhatsApp.', 'error');
+    if (error.message === 'API_KEY_MISSING') {
+      showStatus('Availability is not connected yet. Please contact us on WhatsApp.', 'error');
+    } else {
+      showStatus(`Could not load availability: ${error.message}. Please contact us on WhatsApp.`, 'error');
+    }
   }
 };
 

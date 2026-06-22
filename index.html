@@ -42,7 +42,7 @@
     </nav>
 
     <main id="top">
-      <section class="hero section-pad">
+      <section class="hero container section-pad">
         <div class="hero-copy reveal">
           <p class="eyebrow">⛰️ Where peace meets the peaks</p>
           <h1 class="hero-title">Your private pool escape above the rush of the city.</h1>
@@ -142,7 +142,7 @@
         <div class="booking-card reveal">
           <p class="eyebrow">Book your stay</p>
           <h2 id="booking-title" class="section-title">Plan your stay</h2>
-          <p>Choose an available full-day or half-day slot, add your details, and send your request through WhatsApp. Your booking is confirmed personally after we reply.</p>
+          <p>Choose an available full-day or half-day slot, add your details, and send your request through WhatsApp. Booking request sent, confirmation is made by WhatsApp.</p>
           
           <div class="booking-note" role="note">
             <strong>Reassurance:</strong>
@@ -160,6 +160,14 @@
           </div>
 
           <p class="availability-state" data-booking-status>Loading available times...</p>
+          
+          <div class="date-selector" data-date-selector hidden>
+            <label for="booking-date">Choose a date</label>
+            <div class="select-wrapper">
+              <select id="booking-date" data-date-select></select>
+            </div>
+          </div>
+
           <div class="slot-grid" data-slots aria-live="polite"></div>
 
           <form class="booking-form" data-booking-form hidden>
@@ -227,6 +235,6 @@
       </div>
     </footer>
 
-    <script type="module" src="./script.js?v=booking-1"></script>
+    <script type="module" src="/script.js"></script>
   </body>
 </html>
